@@ -1,26 +1,40 @@
-import { put } from "@vercel/blob"
 import { v4 as uuidv4 } from "uuid"
+import fs from "fs"
+import path from "path"
 
 /**
- * Upload a file to Vercel Blob Storage
+ * Upload a file to local storage
  * @param file The file to upload
  * @param folder The folder to store the file in
  * @returns The URL of the uploaded file
  */
 export async function uploadFile(file: File, folder = "uploads"): Promise<string> {
   try {
-    // Generate a unique filename
-    const filename = `${folder}/${uuidv4()}-${file.name}`
+    // Convert File to Buffer
+    const arrayBuffer = await file.arrayBuffer()
+    const buffer = Buffer.from(arrayBuffer)
 
-    // Upload the file to Vercel Blob Storage
-    const blob = await put(filename, file, {
-      access: "public",
-    })
+    // Create directory if it doesn't exist
+    const publicDir = path.join(process.cwd(), "public")
+    const uploadDir = path.join(publicDir, folder)
 
-    return blob.url
+    // Create directories recursively
+    fs.mkdirSync(uploadDir, { recursive: true })
+
+    // Generate unique filename
+    const uniqueFilename = `${uuidv4()}-${file.name}`
+    const filePath = path.join(uploadDir, uniqueFilename)
+
+    // Write file to disk
+    fs.writeFileSync(filePath, buffer)
+
+    // Return URL that can be used in the app
+    // This URL is relative to the public directory
+    console.log(`/${folder}/${uniqueFilename}`)
+    return `/${folder}/${uniqueFilename}`
   } catch (error) {
-    console.error("Error uploading file:", error)
-    throw new Error("Failed to upload file")
+    console.error("Error saving file locally:", error)
+    throw new Error(`Failed to save file locally: ${(error as Error).message}`)
   }
 }
 

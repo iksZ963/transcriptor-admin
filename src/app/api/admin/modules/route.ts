@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import prisma from "@/lib/prisma"
 import { getUserFromRequest } from "@/lib/auth"
 import { createModuleSchema } from "@/lib/validations/module"
+import { uploadFile } from "@/lib/utils/file-upload"
 
 // GET /api/admin/modules - Get all modules (admin only)
 export async function GET(req: NextRequest) {
@@ -78,6 +79,8 @@ export async function POST(req: NextRequest) {
       const name = formData.get("name") as string
       const description = (formData.get("description") as string) || ""
 
+      console.log("Creating module with name:", name)
+
       // Create the module first to get an ID
       const module = await prisma.module.create({
         data: {
@@ -85,6 +88,8 @@ export async function POST(req: NextRequest) {
           description,
         },
       })
+
+      console.log("Module created successfully:", module.id)
 
       // Process tiers
       const tiers = ["basic", "plus", "premium"]
@@ -103,6 +108,8 @@ export async function POST(req: NextRequest) {
           ? Number.parseInt(formData.get(`${tier}_usageLimit`) as string)
           : 50
 
+        console.log(`Processing tier ${tier} for module ${module.id}`)
+
         // Get files
         const zipFile = formData.get(`${tier}_zipFile`) as File | null
         const iconFile = formData.get(`${tier}_iconFile`) as File | null
@@ -112,42 +119,28 @@ export async function POST(req: NextRequest) {
         let iconUrl = null
 
         if (zipFile) {
-          const formDataForZip = new FormData()
-          formDataForZip.append("file", zipFile)
-          formDataForZip.append("folder", `modules/${module.id}/${tier}`)
-
-          const zipUploadResponse = await fetch("/api/upload", {
-            method: "POST",
-            body: formDataForZip,
-            headers: {
-              Authorization: req.headers.get("authorization") || "",
-            },
-          })
-
-          const zipUploadResult = await zipUploadResponse.json()
-          if (zipUploadResult.success) {
-            zipFileUrl = zipUploadResult.url
+          try {
+            // Use direct function call instead of fetch
+            const folderPath = `modules/${module.id}/${tier}`
+            zipFileUrl = await uploadFile(zipFile, folderPath)
+            console.log(`Uploaded ZIP file for ${tier} tier:`, zipFileUrl)
+          } catch (uploadError) {
+            console.error(`Error uploading ZIP file for ${tier} tier:`, uploadError)
           }
         }
 
         if (iconFile) {
-          const formDataForIcon = new FormData()
-          formDataForIcon.append("file", iconFile)
-          formDataForIcon.append("folder", `icons/${module.id}/${tier}`)
-
-          const iconUploadResponse = await fetch("/api/upload", {
-            method: "POST",
-            body: formDataForIcon,
-            headers: {
-              Authorization: req.headers.get("authorization") || "",
-            },
-          })
-
-          const iconUploadResult = await iconUploadResponse.json()
-          if (iconUploadResult.success) {
-            iconUrl = iconUploadResult.url
+          try {
+            // Use direct function call instead of fetch
+            const folderPath = `icons/${module.id}/${tier}`
+            iconUrl = await uploadFile(iconFile, folderPath)
+            console.log(`Uploaded icon file for ${tier} tier:`, iconUrl)
+          } catch (uploadError) {
+            console.error(`Error uploading icon file for ${tier} tier:`, uploadError)
           }
         }
+
+        console.log(`Creating tier ${tier} for module ${module.id}`)
 
         // Create the tier
         const createdTier = await prisma.moduleTier.create({
@@ -167,6 +160,7 @@ export async function POST(req: NextRequest) {
           },
         })
 
+        console.log(`Tier ${tier} created successfully:`, createdTier.id)
         createdTiers.push(createdTier)
       }
 
@@ -238,7 +232,11 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error("Error creating module:", error)
     return NextResponse.json(
-      { success: false, message: "An error occurred while creating the module" },
+      {
+        success: false,
+        message: "An error occurred while creating the module",
+        error: (error as Error).message,
+      },
       { status: 500 },
     )
   }

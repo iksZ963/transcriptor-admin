@@ -43,5 +43,5 @@ export function middleware(request: NextRequest) {
 
 // Configure the middleware to run only for specific paths
 export const config = {
-  matcher: ["/api/:path*", "/dashboard/:path*", "/modules/:path*", "/packages/:path*", "/users/:path*", "/logs/:path*"],
+  matcher: ["/dashboard/:path*", "/modules/:path*", "/packages/:path*", "/users/:path*", "/logs/:path*"],
 }

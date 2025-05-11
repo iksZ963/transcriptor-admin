@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, message: "File size exceeds the 50MB limit" }, { status: 400 })
     }
 
-    // Upload the file
+    // Upload the file to local storage
     const fileUrl = await uploadFile(file, folder)
 
     return NextResponse.json({
@@ -39,6 +39,13 @@ export async function POST(req: NextRequest) {
     })
   } catch (error) {
     console.error("Error uploading file:", error)
-    return NextResponse.json({ success: false, message: "An error occurred while uploading the file" }, { status: 500 })
+    return NextResponse.json(
+      {
+        success: false,
+        message: "An error occurred while uploading the file",
+        error: (error as Error).message,
+      },
+      { status: 500 },
+    )
   }
 }

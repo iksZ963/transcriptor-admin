@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import prisma from "@/lib/prisma"
 import { getUserFromRequest } from "@/lib/auth"
 import { updateModuleSchema } from "@/lib/validations/module"
+import { uploadFile } from "@/lib/utils/file-upload"
 
 // GET /api/admin/modules/[id] - Get a specific module (admin only)
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
@@ -154,41 +155,26 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         let iconUrl = existingTier?.iconUrl || null
 
         // Upload files if provided
-        if (zipFile && zipFile.size > 0) {
-          const formDataForZip = new FormData()
-          formDataForZip.append("file", zipFile)
-          formDataForZip.append("folder", `modules/${id}/${tier}`)
-
-          const zipUploadResponse = await fetch("/api/upload", {
-            method: "POST",
-            body: formDataForZip,
-            headers: {
-              Authorization: req.headers.get("authorization") || "",
-            },
-          })
-
-          const zipUploadResult = await zipUploadResponse.json()
-          if (zipUploadResult.success) {
-            zipFileUrl = zipUploadResult.url
+       if (zipFile) {
+          try {
+            // Use direct function call instead of fetch
+            const folderPath = `modules/${id}/${tier}`
+            console.log(folderPath)
+            zipFileUrl = await uploadFile(zipFile, folderPath)
+            console.log(`Uploaded ZIP file for ${tier} tier:`, zipFileUrl)
+          } catch (uploadError) {
+            console.error(`Error uploading ZIP file for ${tier} tier:`, uploadError)
           }
         }
 
-        if (iconFile && iconFile.size > 0) {
-          const formDataForIcon = new FormData()
-          formDataForIcon.append("file", iconFile)
-          formDataForIcon.append("folder", `icons/${id}/${tier}`)
-
-          const iconUploadResponse = await fetch("/api/upload", {
-            method: "POST",
-            body: formDataForIcon,
-            headers: {
-              Authorization: req.headers.get("authorization") || "",
-            },
-          })
-
-          const iconUploadResult = await iconUploadResponse.json()
-          if (iconUploadResult.success) {
-            iconUrl = iconUploadResult.url
+        if (iconFile) {
+          try {
+            // Use direct function call instead of fetch
+            const folderPath = `icons/${module.id}/${tier}`
+            iconUrl = await uploadFile(iconFile, folderPath)
+            console.log(`Uploaded icon file for ${tier} tier:`, iconUrl)
+          } catch (uploadError) {
+            console.error(`Error uploading icon file for ${tier} tier:`, uploadError)
           }
         }
 
