@@ -2,7 +2,9 @@ import { type NextRequest, NextResponse } from "next/server"
 import prisma from "@/lib/prisma"
 import { getUserFromRequest } from "@/lib/auth"
 import { createModuleSchema } from "@/lib/validations/module"
-import { uploadFile } from "@/lib/utils/file-upload"
+import { uploadFile, uploadModuleIcon, uploadModuleZip } from "@/lib/utils/file-upload"
+import { moduleUsageTrackerInjection } from "@/lib/utils/usage-limit"
+
 
 // GET /api/admin/modules - Get all modules (admin only)
 export async function GET(req: NextRequest) {
@@ -32,11 +34,14 @@ export async function GET(req: NextRequest) {
     const modules = await prisma.module.findMany({
       where: query,
       include: {
-        tiers: true,
-        _count: {
-          select: {
-            userModules: true,
-            moduleUsage: true,
+        tiers: {
+          include: {
+            _count: {
+              select: {
+                moduleUsage: true,
+                users: true,
+              },
+            },
           },
         },
       },
@@ -97,71 +102,121 @@ export async function POST(req: NextRequest) {
 
       for (const tier of tiers) {
         // Get tier-specific data
-        const entitlementName = `mod_${name.toLowerCase().replace(/[^a-z0-9]/g, "_")}_${tier}`
-        const revCatEntitlementName = formData.get(`${tier}_revCatEntitlementName`) as string
-        const webviewUrl = (formData.get(`${tier}_webviewUrl`) as string) || null
-        const hasTextProduction = formData.get(`${tier}_hasTextProduction`) === "true"
-        const hasConclusion = formData.get(`${tier}_hasConclusion`) === "true"
-        const hasMap = formData.get(`${tier}_hasMap`) === "true"
-        const price = formData.get(`${tier}_price`) ? Number.parseFloat(formData.get(`${tier}_price`) as string) : null
-        const usageLimit = formData.get(`${tier}_usageLimit`)
-          ? Number.parseInt(formData.get(`${tier}_usageLimit`) as string)
-          : 50
+        
+        const hasTextProduction =
+          formData.get(`${tier}_hasTextProduction`) === "true";
 
-        console.log(`Processing tier ${tier} for module ${module.id}`)
+        const hasConclusion = formData.get(`${tier}_hasConclusion`) === "true";
+        const hasMap = formData.get(`${tier}_hasMap`) === "true";
+
+        const textLimit = formData.get(`${tier}_textLimit`)
+          ? Number.parseInt(formData.get(`${tier}_textLimit`) as string)
+          : 50;
+
+        const textProductionId = formData.get(
+          `${tier}_textProductionId`
+        ) as string;
+
+        const mapLimit = formData.get(`${tier}_mapLimit`)
+          ? Number.parseInt(formData.get(`${tier}_mapLimit`) as string)
+          : 0;
+
+        const mapProductionId = formData.get(
+          `${tier}_mapProductionId`
+        ) as string;
+
+        const conclutionLimit = formData.get(`${tier}_conclutionLimit`)
+          ? Number.parseInt(formData.get(`${tier}_conclutionLimit`) as string)
+          : 0;
+
+        const conclutionProductionId = formData.get(
+          `${tier}_conclutionProductionId`
+        ) as string;
+
+        console.log(`Processing tier ${tier} for module ${module.id}`);
 
         // Get files
-        const zipFile = formData.get(`${tier}_zipFile`) as File | null
-        const iconFile = formData.get(`${tier}_iconFile`) as File | null
+        const zipFile = formData.get(`${tier}_zipFile`) as File | null;
+        const iconFile = formData.get(`${tier}_iconFile`) as File | null;
 
         // Upload files if provided
-        let zipFileUrl = null
-        let iconUrl = null
+        let folderPath = null;
+        let moduleUploadDir = null;
+        let iconUrl = null;
+
+        console.log({
+          zipFile,
+          iconFile,
+        });
 
         if (zipFile) {
           try {
             // Use direct function call instead of fetch
-            const folderPath = `modules/${module.id}/${tier}`
-            zipFileUrl = await uploadFile(zipFile, folderPath)
-            console.log(`Uploaded ZIP file for ${tier} tier:`, zipFileUrl)
+            folderPath = `modules/${module.id}/${tier}`;
+            moduleUploadDir = await uploadModuleZip(zipFile, module.id, tier);
+            console.log(`Uploaded ZIP file for ${tier} tier:`, moduleUploadDir);
           } catch (uploadError) {
-            console.error(`Error uploading ZIP file for ${tier} tier:`, uploadError)
+            console.error(
+              `Error uploading ZIP file for ${tier} tier:`,
+              uploadError
+            );
           }
         }
 
         if (iconFile) {
           try {
             // Use direct function call instead of fetch
-            const folderPath = `icons/${module.id}/${tier}`
-            iconUrl = await uploadFile(iconFile, folderPath)
-            console.log(`Uploaded icon file for ${tier} tier:`, iconUrl)
+            iconUrl = await uploadModuleIcon(iconFile, module.id, tier);
+            console.log(`Uploaded icon file for ${tier} tier:`, iconUrl);
           } catch (uploadError) {
-            console.error(`Error uploading icon file for ${tier} tier:`, uploadError)
+            console.error(
+              `Error uploading icon file for ${tier} tier:`,
+              uploadError
+            );
           }
         }
 
-        console.log(`Creating tier ${tier} for module ${module.id}`)
+        console.log(`Creating tier ${tier} for module ${module.id}`);
 
         // Create the tier
         const createdTier = await prisma.moduleTier.create({
           data: {
             moduleId: module.id,
             tier,
-            entitlementName,
-            revCatEntitlementName,
-            webviewUrl,
-            zipFileUrl,
+            entitlementName: "",
+            webviewUrl: `${process.env.WEBVIEW_URL}?module=${module.id}&tier=${tier}`,
+            zipFileUrl: folderPath,
             iconUrl,
             hasTextProduction,
             hasConclusion,
             hasMap,
-            price,
-            usageLimit,
+            textProductionLimit: textLimit,
+            mapLimit: mapLimit,
+            conclusionLimit: conclutionLimit,
           },
-        })
+        });
 
-        console.log(`Tier ${tier} created successfully:`, createdTier.id)
-        createdTiers.push(createdTier)
+        console.log(`Created tier ${tier} for module ${module.id}`);
+
+        await prisma.moduleTier.update({
+          where: { id: createdTier.id },
+          data: {
+            entitlementName: `${module.id}-${createdTier.id}-${tier}`,
+          },
+        });
+
+        // script injection
+        moduleUsageTrackerInjection(
+          moduleUploadDir!,
+          textProductionId,
+          mapProductionId,
+          conclutionProductionId,
+          createdTier.id,
+          process.env.API_BASE_URL || "http://localhost:3000",
+        );
+
+        console.log(`Tier ${tier} created successfully:`, createdTier.id);
+        createdTiers.push(createdTier);
       }
 
       // Get the complete module with tiers

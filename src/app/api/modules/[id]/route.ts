@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import prisma from "@/lib/prisma"
 import { getUserFromRequest } from "@/lib/auth"
-import { checkUsageLimit } from "@/lib/utils/usage-counter"
+import { checkUsageInfo } from "@/lib/utils/usage-limit"
 
 // GET /api/modules/[id] - Get a specific module
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
@@ -15,22 +15,25 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     const { id } = params
 
     // Get the module
-    const module = await prisma.module.findUnique({
+    const moduleTier = await prisma.moduleTier.findUnique({
       where: { id },
       include: {
-        tiers: true,
+        module: true,
       },
     })
 
-    if (!module) {
-      return NextResponse.json({ success: false, message: "Module not found" }, { status: 404 })
+    if (!moduleTier) {
+      return NextResponse.json(
+        { success: false, message: "Module not found" },
+        { status: 404 }
+      );
     }
 
     // Check if the user has access to the module
     const userModule = await prisma.userModule.findFirst({
       where: {
         userId: user.userId,
-        moduleId: id,
+        moduleTierId: id,
         OR: [
           { expiresAt: null }, // Never expires
           { expiresAt: { gt: new Date() } }, // Not expired yet
@@ -44,7 +47,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     let usageInfo = null
     if (hasAccess) {
       try {
-        usageInfo = await checkUsageLimit(user.userId, id)
+        usageInfo = await checkUsageInfo(user.userId, id)
       } catch (error) {
         console.error("Error checking usage limit:", error)
       }
@@ -52,8 +55,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
     return NextResponse.json({
       success: true,
-      module: {
-        ...module,
+      moduleTier: {
+        ...moduleTier,
         hasAccess,
         usageInfo,
       },

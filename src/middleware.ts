@@ -11,32 +11,33 @@ const adminPaths = ["/api/admin", "/dashboard", "/modules", "/packages", "/users
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Check if the path requires authentication
-  const requiresAuth = authPaths.some((path) => pathname.startsWith(path))
 
-  // Check if the path requires admin access
-  const requiresAdmin = adminPaths.some((path) => pathname.startsWith(path))
+  // // Check if the path requires authentication
+  // const requiresAuth = authPaths.some((path) => pathname.startsWith(path))
 
-  if (requiresAuth || requiresAdmin) {
-    // Get the authorization header
-    const authHeader = request.headers.get("authorization")
+  // // Check if the path requires admin access
+  // const requiresAdmin = adminPaths.some((path) => pathname.startsWith(path))
 
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json({ success: false, message: "Authentication required" }, { status: 401 })
-    }
+  // if (requiresAuth || requiresAdmin) {
+  //   // Get the authorization header
+  //   const authHeader = request.headers.get("authorization")
 
-    const token = authHeader.split(" ")[1]
-    const payload = verifyAccessToken(token)
+  //   if (!authHeader || !authHeader.startsWith("Bearer ")) {
+  //     return NextResponse.json({ success: false, message: "Authentication required" }, { status: 401 })
+  //   }
 
-    if (!payload) {
-      return NextResponse.json({ success: false, message: "Invalid or expired token" }, { status: 401 })
-    }
+  //   const token = authHeader.split(" ")[1]
+  //   const payload = verifyAccessToken(token)
 
-    // Check if admin access is required
-    if (requiresAdmin && !payload.isAdmin) {
-      return NextResponse.json({ success: false, message: "Admin access required" }, { status: 403 })
-    }
-  }
+  //   if (!payload) {
+  //     return NextResponse.json({ success: false, message: "Invalid or expired token" }, { status: 401 })
+  //   }
+
+  //   // Check if admin access is required
+  //   if (requiresAdmin && !payload.isAdmin) {
+  //     return NextResponse.json({ success: false, message: "Admin access required" }, { status: 403 })
+  //   }
+  // }
 
   return NextResponse.next()
 }

@@ -28,6 +28,9 @@ model User {
   updatedAt         DateTime    @updatedAt
   lastLoginAt       DateTime?
 
+  googleId     String?  @unique
+  appleId      String?  @unique
+
   // Relations
   userModules       UserModule[]
   userPackages      UserPackage[]
@@ -45,9 +48,7 @@ model Module {
   
   // Relations
   tiers             ModuleTier[]
-  userModules       UserModule[]
   packageModules    PackageModule[]
-  moduleUsage       ModuleUsage[]
 }
 
 // Module tier model
@@ -56,20 +57,24 @@ model ModuleTier {
   moduleId            String
   tier                String      // basic, plus, premium
   entitlementName     String      @unique
-  revCatEntitlementName String    // The entitlement name from RevenueCat
   webviewUrl          String?     // URL for webview (nullable)
   zipFileUrl          String?
   iconUrl             String?
   hasTextProduction   Boolean     @default(false)
   hasConclusion       Boolean     @default(false)
   hasMap              Boolean     @default(false)
-  price               Decimal?    @db.Decimal(10, 2)
-  usageLimit          Int         @default(50)  // -1 for unlimited
+
+  textProductionLimit Int         @default(-1)  // -1 for unlimited
+  conclusionLimit     Int         @default(5)
+  mapLimit            Int         @default(5)
+  
   createdAt           DateTime    @default(now())
   updatedAt           DateTime    @updatedAt
   
   // Relations
   module              Module      @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  moduleUsage ModuleUsage[]
+  users       UserModule[]
 }
 
 // Package model
@@ -104,15 +109,15 @@ model PackageModule {
 model UserModule {
   id                String      @id @default(cuid())
   userId            String
-  moduleId          String
+  moduleTierId      String
   assignedAt        DateTime    @default(now())
   expiresAt         DateTime?
   
   // Relations
   user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  module            Module      @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  moduleTier        ModuleTier      @relation(fields: [moduleTierId], references: [id], onDelete: Cascade)
   
-  @@unique([userId, moduleId])
+  @@unique([userId, moduleTierId])
 }
 
 // User access to packages
@@ -134,11 +139,13 @@ model UserPackage {
 model ModuleUsage {
   id                String      @id @default(cuid())
   userId            String
-  moduleId          String
-  usageCount        Int         @default(0)
+  moduleTierId      String
+  textProductionCount        Int         @default(0)
+  conclusionCount    Int         @default(0)
+  mapCount           Int         @default(0)
   lastUpdated       DateTime    @default(now())
   
   // Relations
   user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  module            Module      @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  moduleTier        ModuleTier      @relation(fields: [moduleTierId], references: [id], onDelete: Cascade)
 }
