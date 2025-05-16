@@ -18,6 +18,7 @@ WORKDIR /app
 
 # Install only production dependencies
 COPY package*.json ./
+COPY prisma ./prisma/
 RUN npm install --only=production
 RUN npx prisma generate
 
