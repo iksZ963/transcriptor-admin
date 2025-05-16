@@ -11,14 +11,6 @@ RUN npm install
 COPY . .
 RUN npm run build
 
-# Copy build output and other necessary files
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/next.config.js ./
-COPY --from=builder /app/node_modules ./node_modules
-
-
-
 # Stage 2: Run the Next.js app
 FROM node:18-alpine AS runner
 
