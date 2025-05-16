@@ -21,46 +21,19 @@ export async function GET(req: NextRequest) {
         ],
       },
       include: {
-        module: {
+        moduleTier: {
           include: {
-            tiers: true,
+            module: true,
+            moduleUsage: true,
           },
         },
       },
     })
 
-    // Get usage information for each module
-    const modulesWithUsage = await Promise.all(
-      userModules.map(async (um) => {
-        const moduleUsage = await prisma.moduleUsage.findFirst({
-          where: {
-            userId: user.userId,
-            moduleId: um.moduleId,
-          },
-        })
-
-        // Find the highest usage limit for the module
-        const highestTier = um.module.tiers.reduce(
-          (highest, current) => {
-            return current.usageLimit > highest.usageLimit ? current : highest
-          },
-          { tier: "basic", usageLimit: 0 },
-        )
-
-        return {
-          module: um.module,
-          assignedAt: um.assignedAt,
-          expiresAt: um.expiresAt,
-          usageCount: moduleUsage ? moduleUsage.usageCount : 0,
-          usageLimit: highestTier.usageLimit,
-          percentUsed: highestTier.usageLimit > 0 ? ((moduleUsage?.usageCount || 0) / highestTier.usageLimit) * 100 : 0,
-        }
-      }),
-    )
 
     return NextResponse.json({
       success: true,
-      modules: modulesWithUsage,
+      modules: userModules,
     })
   } catch (error) {
     console.error("Error fetching user modules:", error)

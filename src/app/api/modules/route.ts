@@ -54,22 +54,22 @@ export async function GET(req: NextRequest) {
 
     // Filter by price if needed
     let filteredModules = modules
-    if (minPrice !== undefined || maxPrice !== undefined) {
-      filteredModules = modules.filter((module) => {
-        // Check if any tier's price is within the range
-        return module.tiers.some((tier) => {
-          const price = tier.price ? Number(tier.price) : 0
-          if (minPrice !== undefined && maxPrice !== undefined) {
-            return price >= minPrice && price <= maxPrice
-          } else if (minPrice !== undefined) {
-            return price >= minPrice
-          } else if (maxPrice !== undefined) {
-            return price <= maxPrice
-          }
-          return true
-        })
-      })
-    }
+    // if (minPrice !== undefined || maxPrice !== undefined) {
+    //   filteredModules = modules.filter((module) => {
+    //     // Check if any tier's price is within the range
+    //     return module.tiers.some((tier) => {
+    //       const price = tier.price ? Number(tier.price) : 0
+    //       if (minPrice !== undefined && maxPrice !== undefined) {
+    //         return price >= minPrice && price <= maxPrice
+    //       } else if (minPrice !== undefined) {
+    //         return price >= minPrice
+    //       } else if (maxPrice !== undefined) {
+    //         return price <= maxPrice
+    //       }
+    //       return true
+    //     })
+    //   })
+    // }
 
     // If activeSubscriber filter is applied, check if the user has access to the modules
     if (activeSubscriber) {
@@ -84,15 +84,19 @@ export async function GET(req: NextRequest) {
           ],
         },
         select: {
-          moduleId: true,
+          moduleTier: {
+            include: {
+              module: true,
+            },
+          },
         },
       })
 
       // Extract all module IDs from user modules
-      const accessibleModuleIds = userModules.map((um) => um.moduleId)
+      const accessibleModuleIds = userModules.map((um) => um.moduleTier.id)
 
       // Filter modules to only include those the user has access to
-      filteredModules = filteredModules.filter((module) => accessibleModuleIds.includes(module.id))
+      filteredModules = filteredModules.filter((module) => module.tiers.map((tier) => tier.id).some((id) => accessibleModuleIds.includes(id)))
     }
 
     // Add a flag to indicate if the user has access to each module
@@ -102,7 +106,7 @@ export async function GET(req: NextRequest) {
         const directAccess = await prisma.userModule.findFirst({
           where: {
             userId: user.userId,
-            moduleId: module.id,
+            moduleTierId: module.id,
             OR: [
               { expiresAt: null }, // Never expires
               { expiresAt: { gt: new Date() } }, // Not expired yet
@@ -121,7 +125,7 @@ export async function GET(req: NextRequest) {
         return {
           ...module,
           hasAccess: !!directAccess,
-          usage: moduleUsage ? moduleUsage.usageCount : 0,
+          usage: moduleUsage || {},
         }
       }),
     )

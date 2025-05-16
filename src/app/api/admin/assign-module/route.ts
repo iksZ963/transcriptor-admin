@@ -7,6 +7,7 @@ import { z } from "zod"
 const assignModuleSchema = z.object({
   userId: z.string().min(1, "User ID is required"),
   moduleId: z.string().min(1, "Module ID is required"),
+  moduleTierId: z.string().min(1, "Module tier ID is required"),
   expiresAt: z.string().datetime().optional(),
 })
 
@@ -34,7 +35,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const { userId, moduleId, expiresAt } = result.data
+    const { userId, moduleId, moduleTierId, expiresAt } = result.data
 
     // Check if the user exists
     const existingUser = await prisma.user.findUnique({
@@ -46,8 +47,8 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if the module exists
-    const existingModule = await prisma.module.findUnique({
-      where: { id: moduleId },
+    const existingModule = await prisma.moduleTier.findUnique({
+      where: { id: moduleTierId, AND: { moduleId } },
     })
 
     if (!existingModule) {
@@ -58,7 +59,7 @@ export async function POST(req: NextRequest) {
     const existingAccess = await prisma.userModule.findFirst({
       where: {
         userId,
-        moduleId,
+        moduleTierId: moduleId,
       },
     })
 
@@ -82,7 +83,7 @@ export async function POST(req: NextRequest) {
     const userModule = await prisma.userModule.create({
       data: {
         userId,
-        moduleId,
+        moduleTierId,
         expiresAt: expiresAt ? new Date(expiresAt) : null,
       },
     })

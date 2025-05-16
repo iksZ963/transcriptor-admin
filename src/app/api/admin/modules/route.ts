@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import prisma from "@/lib/prisma"
 import { getUserFromRequest } from "@/lib/auth"
 import { createModuleSchema } from "@/lib/validations/module"
-import { uploadFile, uploadModuleIcon, uploadModuleZip } from "@/lib/utils/file-upload"
+import { uploadModuleIcon, uploadModuleZip } from "@/lib/utils/file-upload"
 import { moduleUsageTrackerInjection } from "@/lib/utils/usage-limit"
 
 
@@ -87,14 +87,14 @@ export async function POST(req: NextRequest) {
       console.log("Creating module with name:", name)
 
       // Create the module first to get an ID
-      const module = await prisma.module.create({
+      const modulePack = await prisma.module.create({
         data: {
           name,
           description,
         },
       })
 
-      console.log("Module created successfully:", module.id)
+      console.log("Module created successfully:", modulePack.id)
 
       // Process tiers
       const tiers = ["basic", "plus", "premium"]
@@ -133,7 +133,7 @@ export async function POST(req: NextRequest) {
           `${tier}_conclutionProductionId`
         ) as string;
 
-        console.log(`Processing tier ${tier} for module ${module.id}`);
+        console.log(`Processing tier ${tier} for modulePack ${modulePack.id}`);
 
         // Get files
         const zipFile = formData.get(`${tier}_zipFile`) as File | null;
@@ -152,8 +152,8 @@ export async function POST(req: NextRequest) {
         if (zipFile) {
           try {
             // Use direct function call instead of fetch
-            folderPath = `modules/${module.id}/${tier}`;
-            moduleUploadDir = await uploadModuleZip(zipFile, module.id, tier);
+            folderPath = `modules/${modulePack.id}/${tier}`;
+            moduleUploadDir = await uploadModuleZip(zipFile, modulePack.id, tier);
             console.log(`Uploaded ZIP file for ${tier} tier:`, moduleUploadDir);
           } catch (uploadError) {
             console.error(
@@ -166,7 +166,7 @@ export async function POST(req: NextRequest) {
         if (iconFile) {
           try {
             // Use direct function call instead of fetch
-            iconUrl = await uploadModuleIcon(iconFile, module.id, tier);
+            iconUrl = await uploadModuleIcon(iconFile, modulePack.id, tier);
             console.log(`Uploaded icon file for ${tier} tier:`, iconUrl);
           } catch (uploadError) {
             console.error(
@@ -176,15 +176,15 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        console.log(`Creating tier ${tier} for module ${module.id}`);
+        console.log(`Creating tier ${tier} for module ${modulePack.id}`);
 
         // Create the tier
         const createdTier = await prisma.moduleTier.create({
           data: {
-            moduleId: module.id,
+            moduleId: modulePack.id,
             tier,
             entitlementName: "",
-            webviewUrl: `${process.env.WEBVIEW_URL}?module=${module.id}&tier=${tier}`,
+            webviewUrl: `${process.env.WEBVIEW_URL}?module=${modulePack.id}&tier=${tier}`,
             zipFileUrl: folderPath,
             iconUrl,
             hasTextProduction,
@@ -196,12 +196,12 @@ export async function POST(req: NextRequest) {
           },
         });
 
-        console.log(`Created tier ${tier} for module ${module.id}`);
+        console.log(`Created tier ${tier} for module ${modulePack.id}`);
 
         await prisma.moduleTier.update({
           where: { id: createdTier.id },
           data: {
-            entitlementName: `${module.id}-${createdTier.id}-${tier}`,
+            entitlementName: `${modulePack.id}-${createdTier.id}-${tier}`,
           },
         });
 
@@ -248,7 +248,7 @@ export async function POST(req: NextRequest) {
       const { name, description, tiers } = result.data
 
       // Create the module
-      const module = await prisma.module.create({
+      const modulePack = await prisma.module.create({
         data: {
           name,
           description,
@@ -281,7 +281,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         success: true,
         message: "Module created successfully",
-        module,
+        modulePack,
       })
     }
   } catch (error) {

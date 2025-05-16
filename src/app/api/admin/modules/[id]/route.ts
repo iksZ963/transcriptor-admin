@@ -26,8 +26,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
         tiers: true,
         _count: {
           select: {
-            userModules: true,
-            moduleUsage: true,
+            packageModules: true,
           },
         },
       },
@@ -40,10 +39,10 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     // Get usage statistics
     const usageStats = await prisma.moduleUsage.findMany({
       where: {
-        moduleId: id,
+        moduleTierId: id,
       },
       orderBy: {
-        usageCount: "desc",
+        lastUpdated: "desc",
       },
       take: 10, // Get top 10 users by usage
       include: {
@@ -133,15 +132,33 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         // Get tier-specific data
         const slugifiedName = name.toLowerCase().replace(/[^a-z0-9]/g, "_")
         const entitlementName = `mod_${slugifiedName}_${tier}`
-        const revCatEntitlementName = formData.get(`${tier}_revCatEntitlementName`) as string
         const webviewUrl = (formData.get(`${tier}_webviewUrl`) as string) || null
         const hasTextProduction = formData.get(`${tier}_hasTextProduction`) === "true"
         const hasConclusion = formData.get(`${tier}_hasConclusion`) === "true"
         const hasMap = formData.get(`${tier}_hasMap`) === "true"
-        const price = formData.get(`${tier}_price`) ? Number.parseFloat(formData.get(`${tier}_price`) as string) : null
-        const usageLimit = formData.get(`${tier}_usageLimit`)
-          ? Number.parseInt(formData.get(`${tier}_usageLimit`) as string)
-          : 50
+        const textLimit = formData.get(`${tier}_textLimit`)
+          ? Number.parseInt(formData.get(`${tier}_textLimit`) as string)
+          : 50;
+
+        const textProductionId = formData.get(
+          `${tier}_textProductionId`
+        ) as string;
+
+        const mapLimit = formData.get(`${tier}_mapLimit`)
+          ? Number.parseInt(formData.get(`${tier}_mapLimit`) as string)
+          : 0;
+
+        const mapProductionId = formData.get(
+          `${tier}_mapProductionId`
+        ) as string;
+
+        const conclutionLimit = formData.get(`${tier}_conclutionLimit`)
+          ? Number.parseInt(formData.get(`${tier}_conclutionLimit`) as string)
+          : 0;
+
+        const conclutionProductionId = formData.get(
+          `${tier}_conclutionProductionId`
+        ) as string;
 
         // Get files
         const zipFile = formData.get(`${tier}_zipFile`) as File | null
@@ -184,17 +201,17 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
             moduleId: id,
             tier,
             entitlementName,
-            revCatEntitlementName,
             webviewUrl,
             zipFileUrl,
             iconUrl,
             hasTextProduction,
             hasConclusion,
             hasMap,
-            price,
-            usageLimit,
+            textProductionLimit: textLimit,
+            mapLimit,
+            conclusionLimit: conclutionLimit,
           },
-        })
+        });
 
         updatedTiers.push(updatedTier)
       }
