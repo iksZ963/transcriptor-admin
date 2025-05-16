@@ -19,6 +19,7 @@ WORKDIR /app
 # Install only production dependencies
 COPY package*.json ./
 RUN npm install --only=production
+RUN npx prisma generate
 
 # Copy build output and other necessary files
 COPY --from=builder /app/.next ./.next
